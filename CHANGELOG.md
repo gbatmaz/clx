@@ -13,6 +13,7 @@
 
 ## New Features
 - PR #93 Add Bokeh visualization back to Alert Analysis notebook
+- PR #172 Add Periodicity Detection Notebook
  
 ## Improvements
 - PR #88 Documentation updates
