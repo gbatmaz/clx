@@ -26,6 +26,9 @@ cd $WORKSPACE
 export GIT_DESCRIBE_TAG=`git describe --tags`
 export MINOR_VERSION=`echo $GIT_DESCRIBE_TAG | grep -o -E '([0-9]+\.[0-9]+)'`
 
+# Fetch references to development branch for git diffs
+git fetch origin branch-${MINOR_VERSION}
+
 ################################################################################
 # SETUP - Check environment
 ################################################################################
@@ -38,19 +41,26 @@ source activate gdf
 
 logger "Check versions..."
 python --version
-gcc --version
-g++ --version
 
 # FIX Added to deal with Anancoda SSL verification issues during conda builds
 conda config --set ssl_verify False
 
-conda install nvstrings=${MINOR_VERSION} cugraph=${MINOR_VERSION} dask-cudf=${MINOR_VERSION} \
-   requests yaml python-confluent-kafka python-whois dask
+logger "conda install required packages"
+conda install -y -c nvidia -c rapidsai -c rapidsai-nightly -c conda-forge -c defaults -c pytorch -c rapidsai/label/pytorch \
+    "cugraph=${MINOR_VERSION}" \
+    "cuxfilter=${MINOR_VERSION}" \
+    "cupy>=6.6.0,<8.0.0a0,!=7.1.0" \
+    "dask>=2.8.0" \
+    "distributed>=2.8.0" \
+    "dask-cudf=${MINOR_VERSION}" \
+    "pytorch==1.3.1" \
+    "torchvision=0.4.2" \
+    "seaborn" \
+    "s3fs" \
+    "nodejs"
 
-conda install -y pytorch==1.3.1 torchvision -c pytorch
-
-pip install mockito
-pip install cupy-cuda${CUDA_SHORT}
+# Install master version of cudatashader
+pip install "git+https://github.com/rapidsai/cudatashader.git"
 
 conda list
 
@@ -58,8 +68,8 @@ conda list
 # INSTALL - Build package
 ################################################################################
 
-cd $WORKSPACE
-python setup.py build_ext --inplace
+cd $WORKSPACE/python
+pip install -e .
 
 ################################################################################
 # TEST - Test python package
@@ -69,4 +79,6 @@ if hasArg --skip-tests; then
     logger "Skipping Tests..."
 else
     py.test --ignore=ci --cache-clear --junitxml=${WORKSPACE}/junit-clx.xml -v
+    ${WORKSPACE}/ci/gpu/test-notebooks.sh 2>&1 | tee nbtest.log
+    python ${WORKSPACE}/ci/utils/nbtestlog2junitxml.py nbtest.log
 fi
